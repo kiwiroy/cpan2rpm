@@ -116,3 +116,38 @@ sub getopt_spec {
 sub usage { sub { exec 'perldoc', '-t', $0; }; }
 
 exit ( __PACKAGE__->main(@ARGV) ) unless caller();
+
+1;
+
+=pod
+
+=head1 NAME
+
+rpm-builder.pl - build a lot of rpms
+
+=head1 DESCRIPTION
+
+=head1 SYNOPSIS
+
+ ./rpm-builder.pl [options]
+
+Where options and [defaults] are:
+
+ -file <modules.file>  File with a list of modules in
+ -build                Flag to enable actual building
+
+=head1 MODULES.FILE
+
+The modules file is a simple csv with the following columns
+
+ Perl::Module::Name,version,http://.../Perl-Module-Name-v.tar.gz
+
+For example
+
+ Bio::DB::Sam,0,http://search.cpan.org/CPAN/authors/id/L/LD/LDS/Bio-SamTools-1.37.tar.gz
+
+Only Perl::Module::Name is required, but please use all the commas. e.g.
+
+ Class::DBI::Sweet,0.11,
+
+=cut
