@@ -1,0 +1,10 @@
+#!/usr/bin/expect --
+
+## From : http://aaronhawley.livejournal.com/10615.html
+## Augmented to read from file
+
+spawn rpmbuild --sign {*}$argv
+expect {
+"^Enter pass phrase: " { send -- "[read [open "$env(HOME)/rpmbuild/.passphrase" r]]" ; exp_continue }
+eof
+}

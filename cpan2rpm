@@ -149,6 +149,7 @@ sub init {
 	"post=s"          => "post install commands", # Mediaburst Bit
         "pre=s"           => "pre install commands", # Mediaburst Bit
 	"no-auto-prov"    => "suppress RPM provides auto generation", # Mediaburst Bit
+	"rpmbuild=s"      => "change the path for rpmbuild (absolute path!)", ## PFR bit
         );
 
     # get user options from config file ~/.cpan2rpm
@@ -172,7 +173,9 @@ sub init {
     my @args = grep !/^-D$/, @ARGV;
     $ARGS = join " ", map {/\s/ ? qq/'$_'/ : $_} @args;
     my $ret = GetOptions(\%opts, keys %desc);
-
+    $opts{'rpmbuild'} && $opts{'rpmbuild'} =~ m!^/! && do {
+	$RPM = $opts{'rpmbuild'}; 
+    };
     exec("$^X -d $0 " . join(" ", @args)) if $opts{D};
     $VX++, exit if $opts{V};
 
