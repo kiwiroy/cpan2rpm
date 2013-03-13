@@ -2,6 +2,9 @@
 
 use strict;
 use warnings;
+
+use File::Spec;
+use FindBin;
 use Getopt::Long;
 
 sub main {
@@ -84,9 +87,9 @@ sub run_cpan2rpm {
     my ($self, $module) = @_;
 
     my @cmd;
-    push @cmd, qw(cpan2rpm --no-prfx);
+    push @cmd, File::Spec->catfile($self->location, 'cpan2rpm'), '--no-prfx';
     push @cmd, '--name', $module->[0];
-    push @cmd, '--rpmbuild', '/workspace/hrards/ensembl/69/cpan2rpm/cpan2rpmbuild';
+    push @cmd, '--rpmbuild', File::Spec->catfile($self->location, 'cpan2rpmbuild');
 
     if ($module->[2]){
 	push @cmd, '--version', $module->[2];
@@ -102,10 +105,12 @@ sub run_cpan2rpm {
 }
 
 sub modules_file :lvalue { $_[0]->{'modules.file'}; }
+sub location     :lvalue { $_[0]->{'location'};     }
 
 sub getopt_spec {
     my $self = shift;
     $self->modules_file = 'modules.list';
+    $self->location     = $FindBin::Bin;
     return (
 	'help'   => $self->usage,
 	'file=s' => \$self->{'modules.file'},
