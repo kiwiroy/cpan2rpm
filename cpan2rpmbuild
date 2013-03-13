@@ -3,7 +3,11 @@
 ## From : http://aaronhawley.livejournal.com/10615.html
 ## Augmented to read from file
 
-spawn rpmbuild --sign {*}$argv
+## timeout of an hour should be enough
+set timeout 3600
+
+set pid [spawn rpmbuild {*}$argv]
+
 expect {
 "^Enter pass phrase: " { send -- "[read [open "$env(HOME)/rpmbuild/.passphrase" r]]" ; exp_continue }
 eof
