@@ -77,7 +77,7 @@ sub wanted_rpms {
 	next unless $line =~ /\w/;
 	chomp($line);
 	my ($perl_name, $version, $url, @extra) =
-	    split(/,\s?/, $line);
+	    split(/,(?=(?:[^\"]*\"[^\"]*\")*(?![^\"]*\"))/, $line);
 
 	(my $rpmname = $perl_name) =~ s/::/-/g;
 	$rpmname     = "perl-$rpmname";
@@ -102,7 +102,7 @@ sub run_cpan2rpm {
     }
 
     if (@$module > 4) {
-	my @extra = map { split(/ /, $_, 2) }@$module[4..$#$module];
+	my @extra = map { split(/ /, $_, 2) } @$module[4..$#$module];
 	push @cmd, @extra;
     }
 
