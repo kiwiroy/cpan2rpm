@@ -16,7 +16,8 @@ sub main {
 
     delete @ENV{qw(PERL_MM_OPT PERL_MB_OPT)};
     $ENV{PATH} .= ':.';
-
+    ## Fix for XML::SAX::Expat - See their Makefile.PL and FAQ @ http://perl.arix.com/cpan2rpm/
+    $ENV{SKIP_SAX_INSTALL} = 1;
     my $available = $self->available_rpms();
     my $wanted    = $self->wanted_rpms();
 
@@ -69,15 +70,16 @@ sub wanted_rpms {
 
     open(my $csv, '<', $self->modules_file) or return \%wanted;
     while(my $line = <$csv>) {
-	next if $line =~ m/^#/; 
+	next if     $line =~ m/^#/; 
+	next unless $line =~ /\w/;
 	chomp($line);
-	my ($perl_name, $version, $url) =
+	my ($perl_name, $version, $url, @extra) =
 	    split(/,\s?/, $line);
 
 	(my $rpmname = $perl_name) =~ s/::/-/g;
 	$rpmname     = "perl-$rpmname";
 
-	$wanted{ $rpmname } = [ $rpmname, $perl_name, $version || 0, $url ];
+	$wanted{ $rpmname } = [ $rpmname, $perl_name, $version || 0, $url, @extra ];
     }
 
     return \%wanted;
@@ -95,13 +97,19 @@ sub run_cpan2rpm {
 	push @cmd, '--version', $module->[2];
     }
 
+    if (@$module > 4) {
+	my @extra = map { split(/ /, $_, 2) }@$module[4..$#$module];
+	push @cmd, @extra;
+    }
+
     if ($module->[3]){
 	push @cmd, $module->[3];
     } else {
 	push @cmd, $module->[1];
     }
-    #warn "@cmd\n";
-    system(@cmd);
+    # push @cmd, '2>&1';
+    warn "@cmd\n";
+    (system(@cmd) == 0) or warn "Failed ", $module->[0], "\n";
 }
 
 sub modules_file :lvalue { $_[0]->{'modules.file'}; }
