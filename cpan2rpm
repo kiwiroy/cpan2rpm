@@ -693,6 +693,8 @@ while(my ($key,$value) = each(%meta))
 
     my $config_path = "";
     $config_path = $meta{install_path}{etc} if exists($meta{install_path}{etc});
+if($config_path) {
+    ## only do when the authoring of makefile.pl makes the etc install path available
     print "Config Path: $config_path\n";
     my %etc;
     for (split $/, readfile("MANIFEST")) {
@@ -706,6 +708,7 @@ while(my ($key,$value) = each(%meta))
         unless $info->{etc} =~ s/^=//;
 
 print "Info etc = ".$info->{etc}."\n";
+}
 #    $info->{etc} &&= "%config(noreplace) %{_sysconfdir}/ $info->{etc}";
 
     #   fixes the #! so perl can be found (and deps get made ok)
