@@ -78,7 +78,7 @@ sub init {
         url               => "http://www.cpan.org",
         packager          => "Arix International <cpan2rpm\@arix.com>",
         group             => "Applications/CPAN",
-        license           => "Artistic",
+        license           => "GPL",
         release           => 1,
         buildroot         => "%{_tmppath}/%{name}-%{version}-%(id -u -n)",
         defattr           => "-,root,root",
@@ -146,6 +146,10 @@ sub init {
         "help|h"          => "this help screen",
         "V"               => "cpan2rpm version",
         "D"               => "runs the perl debugger",
+	"post=s"          => "post install commands", # Mediaburst Bit
+        "pre=s"           => "pre install commands", # Mediaburst Bit
+	"no-auto-prov"    => "suppress RPM provides auto generation", # Mediaburst Bit
+	"rpmbuild=s"      => "change the path for rpmbuild (absolute path!)", ## PFR bit
         );
 
     # get user options from config file ~/.cpan2rpm
@@ -169,7 +173,9 @@ sub init {
     my @args = grep !/^-D$/, @ARGV;
     $ARGS = join " ", map {/\s/ ? qq/'$_'/ : $_} @args;
     my $ret = GetOptions(\%opts, keys %desc);
-
+    $opts{'rpmbuild'} && $opts{'rpmbuild'} =~ m!^/! && do {
+	$RPM = $opts{'rpmbuild'}; 
+    };
     exec("$^X -d $0 " . join(" ", @args)) if $opts{D};
     $VX++, exit if $opts{V};
 
@@ -505,6 +511,12 @@ sub get_meta {
         $err =~ s/$t/$info->{PL}/g;
         die "FATAL CRASH! Could not load $info->{PL}:\n$err";
         }
+print "start of meta\n";
+while(my ($key,$value) = each(%meta))
+{
+	print "\n$key -- $value\n\n";
+}
+
 
     #   map Build.PL hash keys to MakeMaker's
 
@@ -515,6 +527,10 @@ sub get_meta {
             dist_author AUTHOR
             dist_version VERSION
             dist_version_from VERSION_FROM
+	    dist_abstract ABSTRACT
+	    dist_name DISTNAME
+            rpm_pre RPM_PRE
+            rpm_post RPM_POST
             /;
         $meta{$b2m{$_}} = $meta{$_} for keys %b2m;
         }
@@ -526,7 +542,18 @@ sub get_meta {
     my $deps = $meta{PREREQ_PM};
     for (keys %$deps) {
         my $use = "use $_";
-        $use .= " $deps->{$_}" if $deps->{$_};
+	print "Requries: $_ Version: ".$deps->{$_}."\n";
+
+	#MS 1/9/09 
+	$info->{"perl-requires"}{$_} = $deps->{$_};
+
+	if ( $deps->{$_} ) {
+		my $version = $deps->{$_};
+		$version =~ s/^\D+//g;
+		print "Checking version:".$version."\n" if $version;
+		$use .= " $version" if $version;
+	}
+#        $use .= " $deps->{$_}" if $deps->{$_};
 
         local $^W = 0;
         $@ = ""; eval $use;
@@ -582,6 +609,10 @@ sub get_meta {
             }
         }
 
+        $info->{pre} ||= $meta{RPM_PRE} || "";
+        $info->{post} ||= $meta{RPM_POST} || "";
+
+
     $info->{author} ||= $meta{AUTHOR} || "";
 
     if (!$info->{author} && $from =~ /=head\d\s+AUTHORS?\s+(.*?)=/is) {
@@ -617,6 +648,8 @@ sub get_meta {
 
     $info->{version} ||= $meta{VERSION};
     unless ($info->{version}) {
+	require ExtUtils::MakeMaker
+		unless ExtUtils::MM_Unix->can ('parse_version');
         $info->{version} = ExtUtils::MM_Unix->parse_version($from)
             if $from = $meta{VERSION_FROM};
         trim($info->{version}); # parse_version() returns spaces
@@ -652,7 +685,7 @@ sub get_meta {
     for (split $/, readfile("MANIFEST")) {
         s|[/\s].*||;
         # get subdirs (with some exceptions)
-        $doc{$_} = 1, next if -d && !/^(t|lib)$/;
+        $doc{$_} = 1, next if -d && !/^(t|lib|bin|etc)$/;
         # list all files that match the regexp
         $doc{$_} = 1 if /$docRE/i;
         }
@@ -660,6 +693,26 @@ sub get_meta {
     $info->{doc} = join " ", $info->{doc}, keys %doc
         unless $info->{doc} =~ s/^=//;
     $info->{doc} &&= "%doc $info->{doc}";
+
+    my $config_path = "";
+    $config_path = $meta{install_path}{etc} if exists($meta{install_path}{etc});
+if($config_path) {
+    ## only do when the authoring of makefile.pl makes the etc install path available
+    print "Config Path: $config_path\n";
+    my %etc;
+    for (split $/, readfile("MANIFEST")) {
+        s|[\s].*||;
+        # list all files that match the regexp
+        print "Config Match: $1\n" if /^etc(.*)/i;
+	$etc{"%config(noreplace) $config_path$1"} = 1 if /^etc(.*)/i;
+        }
+    $info->{etc} ||= "";
+    $info->{etc} = join "\n", $info->{etc}, keys %etc
+        unless $info->{etc} =~ s/^=//;
+
+print "Info etc = ".$info->{etc}."\n";
+}
+#    $info->{etc} &&= "%config(noreplace) %{_sysconfdir}/ $info->{etc}";
 
     #   fixes the #! so perl can be found (and deps get made ok)
 
@@ -891,13 +944,28 @@ ZZ
 
     #   add lists
 
+    for (keys %{$info->{"perl-requires"}}) {
+        $spec .= sprintf("%-*s perl(%s)", $SPECCOL, "requires: ", $_);
+        if($info->{"perl-requires"}{$_}) {
+	    if($info->{"perl-requires"}{$_} =~m/^\s?[<>=!]+\s?\d+/g) {
+                $spec .= " ".$info->{"perl-requires"}{$_};
+            } elsif ($info->{"perl-requires"}{$_} =~m/^\s?\d+/g) {
+                $spec .= " == ".$info->{"perl-requires"}{$_};
+            }
+        }
+        $spec .="\n";
+    }
+
+
     $spec .= $info->{"provides-list"};
     $spec .= $info->{"requires-list"};
     $spec .= $info->{"buildrequires-list"};
     $spec .= $info->{"source-list"};
     $spec .= $info->{"patch-files"};
     $spec .= $info->{epilogue}{tag};
-
+    if($info->{"no-auto-prov"}) {
+        $spec .= "AutoProv: no\n";
+    }	
     $spec .= "\n" . q/%description/ . "\n$info->{description}\n";
 
     $_ = <<ZZ;
@@ -981,6 +1049,9 @@ ZZ
         %{__perl} -MFile::Find -le '
             find({ wanted => \\&wanted, no_chdir => 1}, "%{buildroot}");
             print "$info->{doc}";
+            print <<ETC; $info->{etc} 
+ETC
+
             for my \$x (sort \@dirs, \@files) {
                 push \@ret, \$x unless indirs(\$x);
                 }
@@ -1024,6 +1095,17 @@ ZZ
 
     $spec .= qq|$/%files -f %filelist|;
     $spec .= qq|$/%defattr($info->{defattr})$/|;
+
+    if($info->{post})
+    {
+        $spec .= qq|$/%post\n$info->{post}$/|;
+    }
+
+    if($info->{pre})
+    {
+        $spec .= qq|$/%pre\n$info->{pre}$/|;
+    }
+
     $spec .= $info->{epilogue}{files};
 
     $spec .= mksec($info, "changelog"
