@@ -38,6 +38,9 @@ sub main {
 	$self->run_cpan2rpm( $_ ) for values(%$wanted);
     }
 
+    warn sprintf(qq{** success %s **\n}, $_) for @{ $self->{'success'} };
+    warn sprintf(qq{** failed %s **\n},  $_) for @{ $self->{'failed'}  };
+
     return 0;
 }
 
@@ -92,6 +95,7 @@ sub run_cpan2rpm {
     push @cmd, File::Spec->catfile($self->location, 'cpan2rpm'), '--no-prfx';
     push @cmd, '--name', $module->[0];
     push @cmd, '--rpmbuild', File::Spec->catfile($self->location, 'cpan2rpmbuild');
+    push @cmd, '--release', $self->release;
 
     if ($module->[2]){
 	push @cmd, '--version', $module->[2];
@@ -109,20 +113,30 @@ sub run_cpan2rpm {
     }
     # push @cmd, '2>&1';
     warn "@cmd\n";
-    (system(@cmd) == 0) or warn "Failed ", $module->[0], "\n";
+    if((system(@cmd) == 0)){
+	push @{ $self->{'success'} }, $module->[0];
+    } else {
+	push @{ $self->{'failed'}  }, $module->[0];
+	warn "Failed ", $module->[0], "\n";
+    }
 }
 
 sub modules_file :lvalue { $_[0]->{'modules.file'}; }
 sub location     :lvalue { $_[0]->{'location'};     }
+sub release      :lvalue { $_[0]->{'release'};      }
 
 sub getopt_spec {
     my $self = shift;
     $self->modules_file = 'modules.list';
     $self->location     = $FindBin::Bin;
+    $self->release      = 'pfr';
+    $self->{'success'}  = [];
+    $self->{'failed'}   = [];
     return (
 	'help'   => $self->usage,
 	'file=s' => \$self->{'modules.file'},
 	'build'  => \$self->{'run_build'},
+	'rel=s'  => \$self->{'release'},
 	);
 }
 
