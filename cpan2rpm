@@ -541,7 +541,7 @@ while(my ($key,$value) = each(%meta))
     my @deps;
     my $deps = $meta{PREREQ_PM};
     for (keys %$deps) {
-        my $use = "use $_";
+        my $use = ($_ ne 'perl' ? "use $_" : "use");
 	print "Requries: $_ Version: ".$deps->{$_}."\n";
 
 	#MS 1/9/09 
@@ -550,7 +550,7 @@ while(my ($key,$value) = each(%meta))
 	if ( $deps->{$_} ) {
 		my $version = $deps->{$_};
 		$version =~ s/^\D+//g;
-		print "Checking version:".$version."\n" if $version;
+		print "Checking version: ".$version."\n" if $version;
 		$use .= " $version" if $version;
 	}
 #        $use .= " $deps->{$_}" if $deps->{$_};
