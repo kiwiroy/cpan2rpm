@@ -18,8 +18,8 @@ sub main {
     $ENV{PATH} .= ':.';
     ## Fix for XML::SAX::Expat - See their Makefile.PL and FAQ @ http://perl.arix.com/cpan2rpm/
     $ENV{SKIP_SAX_INSTALL} = 1;
-    my $available = $self->available_rpms();
     my $wanted    = $self->wanted_rpms();
+    my $available = $self->available_rpms( map { [ $_->[1], $_->[2] ] } values %$wanted );
 
     ## delete returns the values deleted
     my @have      = grep { defined } delete @$wanted{ keys %$available };
@@ -53,16 +53,20 @@ sub needed_message {
     my ($self, $n) = @_;
     return sprintf(q{module %s version %s is required}, @$n[1,2]);
 }
+
 sub available_rpms {
-    my ($self) = @_;
+    my ($self, @query_set) = @_;
     my %available;
-    open(my $fh, '-|', 'yum list -C perl-* 2>/dev/null');
-    while(my $line = <$fh>) {
-	chomp($line);
-	next unless $line =~ /^perl-/;
-	my ($fullname, $version, $source) = split(/\s+/, $line);
-	my ($name, $arch) = split(/\./, $fullname);
-	$available{$name} = [ $name, $arch, $version, $source];
+    foreach my $name_version(@query_set){
+	my ($module, $version) = @$name_version;
+	my $query = File::Spec->catfile($self->location, 'query.py');	
+	open(my $fh, '-|', "$query 'perl($module)' $version 2>/dev/null");
+	my $loaded = <$fh>;
+	while(my $found = <$fh>) {
+	    chomp($found);
+	    my ($name, $arch, $version, $source) = split(/\s/, $found);
+	    $available{$name} = [ $name, $arch, $version, $source ];
+	}
     }
     return \%available;
 }
