@@ -950,7 +950,7 @@ ZZ
 	    if($info->{"perl-requires"}{$_} =~m/^\s?[<>=!]+\s?\d+/g) {
                 $spec .= " ".$info->{"perl-requires"}{$_};
             } elsif ($info->{"perl-requires"}{$_} =~m/^\s?\d+/g) {
-                $spec .= " == ".$info->{"perl-requires"}{$_};
+                $spec .= " >= ".$info->{"perl-requires"}{$_};
             }
         }
         $spec .="\n";
